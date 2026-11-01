@@ -75,11 +75,15 @@
     var list = document.querySelector('#motscles');
     if (!list) return;
 
-    list.innerHTML = '';
+    // Une seule insertion : innerHTML += reparsait toute la liste à chaque tour.
+    var frag = document.createDocumentFragment();
     for (var i = 0; i < TAGS.length; i++) {
-      // On ajoute chaque entrée au fur et à mesure pour garder l'ordre.
-      list.innerHTML += '<option value="' + TAGS[i] + '"></option>';
+      var opt = document.createElement('option');
+      opt.value = TAGS[i];
+      frag.appendChild(opt);
     }
+    list.textContent = '';
+    list.appendChild(frag);
   }
 
   /* Construit le calendrier d'activité : 53 semaines de 7 jours, la teinte de
