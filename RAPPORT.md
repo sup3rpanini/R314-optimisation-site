@@ -142,14 +142,66 @@ Les numéros de ligne renvoient aux fichiers **d'origine**.
 
 ## 3. Résultats (après)
 
-| Indicateur | Avant | Après | Comment c'est mesuré |
+Captures : dossier [`audit/apres/`](audit/apres/). Mêmes outils et mêmes réglages que pour l'« avant ».
+
+### Les six indicateurs
+
+| Indicateur | Avant | Après | Évolution | Source |
+|---|---|---|---|---|
+| Poids transféré | 17,6 Mo | **454 kB** | −97 % | DevTools Réseau |
+| Requêtes | 23 | **16** | −7 | DevTools Réseau |
+| FCP (mobile) | 1,7 s | **0,8 s** | −53 % | PSI |
+| LCP (mobile) | 66,8 s | **1,8 s** | −97 % | PSI |
+| CLS (mobile) | 0,011 | **0** | | PSI |
+| TBT (mobile) | 220 ms | **0 ms** | −100 % | PSI (ordinateur : 510 → 0 ms) |
+
+### PageSpeed Insights (Lighthouse 13.6.0, avant à 21 h 56, après à 22 h 12)
+
+| Profil | | Score | FCP | LCP | TBT | CLS | Speed Index |
+|---|---|---|---|---|---|---|---|
+| Mobile | avant | 60 | 1,7 s | 66,8 s | 220 ms | 0,011 | 17,5 s |
+| Mobile | **après** | **98** | **0,8 s** | **1,8 s** | **0 ms** | **0** | **3,8 s** |
+| Ordinateur | avant | 43 | 1,0 s | 12,2 s | 510 ms | 0 | 4,2 s |
+| Ordinateur | **après** | **100** | **0,2 s** | **0,3 s** | **0 ms** | **0** | **0,4 s** |
+
+Rapport PSI après : [mobile](https://pagespeed.web.dev/analysis/https-sup3rpanini-github-io-R314-optimisation-site/6ab14860rr?form_factor=mobile), [ordinateur](https://pagespeed.web.dev/analysis/https-sup3rpanini-github-io-R314-optimisation-site/6ab14860rr?form_factor=desktop).
+
+### Lighthouse dans les DevTools (13.4.1)
+
+| Profil | | Score | FCP | LCP | TBT | CLS | Speed Index |
+|---|---|---|---|---|---|---|---|
+| Mobile | avant | 31 | 3,5 s | 68,6 s | 470 ms | 0,304 | 23,4 s |
+| Mobile | **après** | **86** | **1,0 s** | **2,1 s** | 530 ms | **0,011** | **1,2 s** |
+| Ordinateur | avant | 58 | 1,3 s | 12,7 s | 30 ms | 0,118 | 6,7 s |
+| Ordinateur | **après** | **100** | **0,3 s** | **0,5 s** | **10 ms** | **0** | **0,4 s** |
+
+Les audits encore signalés après correction : « durées de mise en cache » (en-têtes GitHub, voir §4), « découverte de la requête LCP » (texture découverte via la CSS, voir §4) et quelques Kio d'images estimés récupérables.
+
+**Le TBT mobile des DevTools (530 ms) ne vient pas du site.** PSI, sur les serveurs de Google, mesure **0 ms** pour la même version. En local, la frise Performances attribue 1 467 ms de fil principal à « [unattributed] » et fait apparaître les extensions du navigateur (Vivaldi, Picture-in-Picture), alors que le script du site ne totalise que 172 ms sur tout l'enregistrement. Le mode mobile des DevTools multiplie ces durées locales par le ralentissement simulé. C'est l'écart que la méthodologie annonçait entre une machine personnelle et PSI, et c'est pourquoi PSI sert de référence.
+
+### DevTools Réseau et Performances
+
+| Mesure | Avant | Après |
+|---|---|---|
+| Requêtes | 23 | 16 |
+| Transféré / ressources | 17,6 Mo / 17,7 Mo | **454 kB / 470 kB** |
+| DOMContentLoaded | 3,47 s | **502 ms** |
+| Load | 3,58 s | **574 ms** |
+| LCP (panneau Performances) | 3,64 s | **0,65 s** |
+| CLS (panneau Performances) | 0,02 | **0** |
+
+Sur la frise après, la tâche d'`ui-kit.min.js` et le bloc `buildKeywordIndex` du chargement ont disparu.
+
+**Ce qui reste.** Des images un peu longues subsistent pendant le défilement. Ce n'est plus du script (172 ms de *Scripting* au total) mais du rendu (524 ms de *Rendering*). Le calendrier anime l'opacité de ses 371 cases à chaque image, avec une transition CSS. C'est un effet visuel du site, conservé pour l'iso-rendu. Piste non appliquée : isoler le calendrier (`contain: paint`) pour limiter la zone repeinte.
+
+### Mesures complémentaires
+
+| Indicateur | Avant | Après | Mesure |
 |---|---|---|---|
-| Poids total | 17,6 Mo (DevTools) | **0,18 Mo** (ordinateur) / 0,47 Mo (mobile) | Après : fichiers + gzip -9, **à confirmer dans DevTools après déploiement** |
-| Requêtes | 23 (DevTools) | **13** (favicon compris) | idem |
 | Tâches > 50 ms (30 s, scroll, 1350 px) | 9 (de 59 à 687 ms) | **0** (max 12 ms) | Chromium local, même protocole |
 | CSS | 124 Ko en 3 fichiers + 2 CSS tierces | 6 Ko, 1 fichier | |
 | JS | 3 fichiers + 1 404 | 1 fichier en `defer` | |
-| FCP / LCP / TBT / CLS / SI | voir §1 | **à relever sur PSI après déploiement** (3 passages, médiane) | |
+| CLS au pire cas (polices +1,5 s, images +1 s) | — | 0 en 1350 px et en 375 px | Serveur local volontairement ralenti |
 
 ### Vérification de l'iso-rendu
 
