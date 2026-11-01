@@ -10,46 +10,83 @@
 
 | Source | Conditions |
 |---|---|
-| PageSpeed Insights | Site déployé (GitHub Pages), Lighthouse 13.5.0, profils Mobile et Ordinateur |
-| Réseau | Site déployé, `curl --compressed` sur chaque ressource demandée par `index.html` (poids réellement transférés, gzip compris) |
-| Exécution JS | Chromium, serveur local `python -m http.server`, fenêtre 1350×940 (> 1024 px, voir P19), 30 s d'enregistrement avec défilement |
+| DevTools (Réseau, Performances, Lighthouse) | Site déployé, navigation privée, cache désactivé. Lighthouse 13.4.1 : Moto G Power + 4G lente (mobile), 1350×940 (ordinateur). Performances : CPU ×4, avec défilement |
+| PageSpeed Insights | Site déployé, 2 passages : Lighthouse 13.5.0 puis 13.6.0 (1ᵉʳ novembre 2026, 21 h 56) |
+| Exécution JS longue | Chromium, serveur local `python -m http.server`, fenêtre 1350×940 (> 1024 px, voir P19), 30 s avec défilement, sans ralentissement CPU |
 
-**Limites.** Pas de données de terrain (CrUX) : le site n'a pas assez de trafic, donc tout l'audit repose sur des données de laboratoire. Le quota de l'API PageSpeed était épuisé, donc les chiffres PSI ci-dessous viennent d'**un seul passage**. Il faut les relancer 3 fois et garder la médiane, d'autant que la méthodologie du TP signale un TBT bimodal sur ce site. Les mesures JS locales sont faites **sans** ralentissement CPU : les durées seraient environ ×4 sur le profil « mobile » de Lighthouse.
+**Limites.**
+- Pas de données de terrain (CrUX) : le site n'a pas assez de trafic, donc tout l'audit repose sur des données de laboratoire.
+- Les temps varient fortement d'un passage à l'autre (TBT desktop : 30, 360 puis 510 ms ; LCP mobile : 12,1 puis 66,8 s). On raisonne en ordres de grandeur. Le poids et le nombre de requêtes, eux, sont stables au kilo-octet près.
+- L'enregistrement « recharger et profiler » des DevTools s'arrête de lui-même après le chargement (~9 s). Le minuteur d'`analytics.js`, qui démarre plus tard, est donc documenté par la mesure longue en local et par PSI (voir P19).
 
-### PageSpeed Insights (avant)
+Captures : dossier [`audit/avant/`](audit/avant/).
 
-| Profil | Score | FCP | LCP | TBT | CLS | Speed Index |
-|---|---|---|---|---|---|---|
-| Mobile | **63** | 2,4 s | **12,1 s** | 160 ms | 0 | 7,3 s |
-| Ordinateur | **61** | 1,0 s | 3,1 s | **360 ms** | 0 | 2,1 s |
+### Réseau (avant) : DevTools, site déployé
 
-Ce que disent les audits du rapport :
-- **Élément LCP : `<div class="hero">`**, c'est-à-dire sa texture `::before` (`hero-bg.jpg`, 3,4 Mo, affichée à 4 % d'opacité). Sur Ordinateur, le délai d'affichage de l'élément atteint 2 130 ms.
-- **Requêtes bloquant le rendu** : `polyfills.js` (404), `ui-kit.min.js`, `app.js`, `styles.css` et `extra.css`. Économie estimée : 1 630 ms en mobile.
-- **Ajustement forcé de la mise en page** : 163 ms sur `app.js:185` et 168 ms au total pour `app.js`.
-- **Tâches longues** : `ui-kit.min.js` 832 ms au chargement.
-- **Arborescence réseau** : `styles.css` → `extra.css` → `theme-legacy.css` → Google Fonts → woff2, soit une chaîne d'au moins 4 niveaux.
-- Images sans `width`/`height`, images trop grandes (1,5 Mo d'économie estimée), erreurs dans la console (404 et preload refusé).
-- Remarque : PSI n'indique que 3,1 Mo de « charge utile ». Le transfert réel mesuré est de 16,8 Mo (voir ci-dessous), car la trace Lighthouse s'arrête avant la fin du téléchargement des images. Le poids se lit dans l'onglet Réseau, pas dans PSI.
+Capture : `01-reseau-devtools.png`, triée par taille décroissante.
 
-### Réseau (avant), site déployé
+**23 requêtes, 17,6 Mo transférés** (17,7 Mo de ressources). DOMContentLoaded à 3,47 s, load à 3,58 s. Les plus lourdes :
 
-**21 requêtes, 16,77 Mo transférés** (sans compter le favicon de 787 Ko). Les plus lourdes :
-
-| Ressource | Poids | Remarque |
+| Ressource | Taille | Remarque |
 |---|---|---|
-| img/img6.jpg | 3 390 Ko | |
-| img/img6.jpg?v=2 | 3 390 Ko | **doublon** (preload) |
-| img/hero-bg.jpg | 3 390 Ko | **le même fichier**, affiché à 4 % d'opacité |
-| img/img1.jpg | 2 524 Ko | 3968 px pour un affichage d'environ 388 px |
-| img/img4.jpg | 1 232 Ko | |
-| img/img2.jpg | 1 044 Ko | |
-| img/img5.jpg | 959 Ko | |
-| img/favicon.png | 787 Ko | 512×512 pour un affichage en 16 px |
-| img/img3.jpg | 772 Ko | |
-| js/legacy/polyfills.js | **404** | bloquant dans le `<head>` |
+| img6.jpg?v=2 | 3 393 kB | **doublon** de img6.jpg (preload) |
+| img6.jpg | 3 393 kB | |
+| hero-bg.jpg | 3 393 kB | **le même fichier**, affiché à 4 % d'opacité |
+| img1.jpg | 2 526 kB | 3968 px pour un affichage d'environ 388 px |
+| img4.jpg | 1 233 kB | |
+| img2.jpg | 1 045 kB | |
+| img5.jpg | 960 kB | |
+| favicon.png | 788 kB | 512×512 pour un affichage en 16 px |
+| img3.jpg | 773 kB | |
+| polyfills.js | **404** | bloquant dans le `<head>` |
 
-### Exécution (avant), Chromium 1350×940, sans ralentissement CPU
+La colonne Initiator montre la chaîne critique : `styles.css:1` → `extra.css` → `extra.css:1` → `theme-legacy.css` → `theme-legacy.css:3` → Google Fonts (Playfair), et `styles.css:2` → Google Fonts (Poppins) → woff2.
+
+### Lighthouse et PageSpeed Insights (avant)
+
+| Outil | Profil | Score | FCP | LCP | TBT | CLS | Speed Index |
+|---|---|---|---|---|---|---|---|
+| Lighthouse DevTools | Mobile | **31** | 3,5 s | **68,6 s** | 470 ms | 0,304 | 23,4 s |
+| Lighthouse DevTools | Ordinateur | **58** | 1,3 s | 12,7 s | 30 ms | 0,118 | 6,7 s |
+| PSI, passage 1 | Mobile | 63 | 2,4 s | 12,1 s | 160 ms | 0 | 7,3 s |
+| PSI, passage 1 | Ordinateur | 61 | 1,0 s | 3,1 s | 360 ms | 0 | 2,1 s |
+| PSI, passage 2 | Mobile | **60** | 1,7 s | **66,8 s** | 220 ms | 0,011 | 17,5 s |
+| PSI, passage 2 | Ordinateur | **43** | 1,0 s | 12,2 s | **510 ms** | 0 | 4,2 s |
+
+Rapports PSI du passage 2 : [mobile](https://pagespeed.web.dev/analysis/https-sup3rpanini-github-io-R314-optimisation-site/4mxedm3nwb?form_factor=mobile), [ordinateur](https://pagespeed.web.dev/analysis/https-sup3rpanini-github-io-R314-optimisation-site/4mxedm3nwb?form_factor=desktop).
+
+Ce que disent les rapports :
+- **Élément LCP : `<div class="hero">`** dans tous les passages, c'est-à-dire sa texture `::before` (`hero-bg.jpg`, 3,4 Mo à 4 % d'opacité). Elle n'est découverte qu'au bout de la chaîne d'`@import` et se télécharge en concurrence avec ~10 Mo de photos : en 4G lente, LCP de 66 à 68 s. Métriques locales des DevTools : LCP 2,76 s, CLS 0,02 (`02-metriques-locales.png`).
+- **Poids** : « Total size was 17 143 KiB » (Lighthouse DevTools). Économies estimées : 10 977 KiB sur les images, 14 978 KiB sur la mise en cache.
+- **Requêtes bloquant le rendu** : 2 680 ms d'économie estimée en mobile, 750 ms en ordinateur.
+- **Affichage de la police** (`display=block`) : 350 ms (mobile), 610 ms (ordinateur).
+- **Fil principal (mobile)** : 4,6 s de travail, dont 2,9 s d'exécution JavaScript, et 4 tâches longues.
+- **Tâches longues (PSI ordinateur, passage 2)** : `ui-kit.min.js` 731 ms à 258 ms, **`analytics.js` 464 ms à 10,9 s**, document 89 ms.
+- Ajustement forcé de la mise en page, causes de décalage de mise en page, images sans `width`/`height`, erreurs console (404 et preload refusé).
+
+**Pourquoi le TBT est bimodal (30 → 510 ms sur la même page).** Le TBT ne compte que les tâches situées **entre le FCP et le TTI**. La boucle de 620 ms d'UIKit s'exécute dans le `<head>`, *avant* le premier rendu : elle retarde le FCP et n'entre presque jamais dans le TBT. Ce qui fait basculer le TBT, c'est `analytics.js`. Si son premier passage (~6,5 s + 2,6 s après le `load`) tombe avant le TTI, ce qui arrive quand les images n'ont pas fini de charger, on obtient 360 à 510 ms. Sinon on obtient 30 ms. En mobile (412 px), `analytics.js` ne s'active jamais.
+
+### Exécution (avant) : panneau Performances, CPU ×4
+
+Captures : `03-performances-frise.png` et `04-performances-bottom-up.png`.
+
+La frise montre trois blocs rouges :
+- au chargement : *Evaluate script* d'`ui-kit.min.js` ;
+- à DOMContentLoaded : `buildKeywordIndex` ;
+- pendant le défilement : une tâche à chaque cran (`revealCards`).
+
+Bottom-up, classé par temps propre :
+
+| Self time | Total time | Activité | Correspond à |
+|---|---|---|---|
+| 306,8 ms | **610,6 ms (61,4 %)** | `c` — `ui-kit.min.js:2:26` | P15 (a) : boucle active `_cal` |
+| 303,7 ms | 303,7 ms | `now` | les appels à `performance.now()` de cette même boucle |
+| 49,8 ms | 116,1 ms | `set innerHTML` | P16 : `innerHTML +=` des mots-clés |
+| 54,1 ms | 54,1 ms | Layout | P17/P18 : reflows forcés |
+| 15,4 ms | 89,4 ms | `getBoundingClientRect` | P17/P18 |
+| 12,7 ms | 22,9 ms | `b` — `ui-kit.min.js:2:129` | P15 (b) : 240 000 objets `_pool` |
+
+### Exécution longue (avant) : Chromium 1350×940, sans ralentissement CPU, 30 s
 
 | Instant | Blocage | Origine |
 |---|---|---|
@@ -92,7 +129,7 @@ Les numéros de ligne renvoient aux fichiers **d'origine**.
 
 | # | Fichier et ligne | Nature | Preuve | Coût | Correction |
 |---|---|---|---|---|---|
-| P15 | `js/vendor/ui-kit.min.js:2` | Une fois déplié : (a) `_cal` tourne en boucle active 620 ms au parsing ; (b) `_pool` alloue 240 000 objets jamais lus ; (c) un `MutationObserver` sur tout le document (`subtree` + `attributes`) appelle `getComputedStyle` sur **tous** les éléments à chaque mutation | Long task de 832 ms (PSI) / 687 ms (local) | TBT, mémoire, et chaque écriture de style au scroll relance un recalcul complet sur ~800 nœuds | `app.js` n'utilisait que `qs`, `qsa`, `cls`, `ready` : remplacés par le DOM natif, UIKit supprimé |
+| P15 | `js/vendor/ui-kit.min.js:2` | Une fois déplié : (a) `_cal` tourne en boucle active 620 ms au parsing ; (b) `_pool` alloue 240 000 objets jamais lus ; (c) un `MutationObserver` sur tout le document (`subtree` + `attributes`) appelle `getComputedStyle` sur **tous** les éléments à chaque mutation | Bottom-up : `c` (`ui-kit.min.js:2:26`) 610 ms, soit 61 % du temps. PSI : tâche de 731 à 832 ms | TBT, mémoire, et chaque écriture de style au scroll relance un recalcul complet sur ~800 nœuds | `app.js` n'utilisait que `qs`, `qsa`, `cls`, `ready` : remplacés par le DOM natif, UIKit supprimé |
 | P16 | `js/app.js:81` | `list.innerHTML +=` dans une boucle de 320 mots-clés : la liste est reparsée à chaque tour | Code + tâche de 290 ms au DOMContentLoaded | Quadratique | `DocumentFragment`, une seule insertion |
 | P17 | `js/app.js:161-172` | Pour chaque carte : `querySelectorAll('.card')` + lecture de `offsetHeight` de toutes les cartes juste après l'écriture d'un `min-height` | PSI « Ajustement forcé », `app.js:162/174` | n² + reflow forcé, à chaque scroll | Calcul seulement au chargement et au redimensionnement : lectures, puis écritures |
 | P18 | `js/app.js:183-188` + `:213-215` | Pour les 371 cases du calendrier : `getBoundingClientRect()` puis `style.opacity` en alternance, à chaque événement scroll non limité | PSI : 163 ms sur `app.js:185` | 371 reflows forcés par événement, amplifiés par P15 (c) | Les 7 rangées sont mesurées une fois, une seule lecture par image, `requestAnimationFrame`, écouteur `passive` |
@@ -101,14 +138,14 @@ Les numéros de ligne renvoient aux fichiers **d'origine**.
 
 | # | Fichier et ligne | Nature | Preuve | Coût | Correction |
 |---|---|---|---|---|---|
-| P19 | `js/analytics.js:19-29` | Code obscurci (`atob` → `innerWidth`, `performance`, `now`, `hidden`). Il démarre 6,5 s après le `load`, puis s'exécute toutes les 2,6 s, **seulement si la fenêtre fait plus de 1024 px et que l'onglet est visible**. Il sérialise tout le DOM puis tourne en boucle active : 46 ms ×1,28 à chaque passage, jusqu'à 430 ms | Mesure locale à 1350 px : 59 → 262 ms en 30 s, rien à 1024 px. Explique l'écart Mobile/Ordinateur et les mesures non reproductibles | Le site rame après quelques secondes sur ordinateur portable : c'est la plainte du client | Suppression. Il n'envoie rien (aucune requête, résultat rangé dans `window.__au`, lu nulle part) : aucune fonctionnalité perdue |
+| P19 | `js/analytics.js:19-29` | Code obscurci (`atob` → `innerWidth`, `performance`, `now`, `hidden`). Il démarre 6,5 s après le `load`, puis s'exécute toutes les 2,6 s, **seulement si la fenêtre fait plus de 1024 px et que l'onglet est visible**. Il sérialise tout le DOM puis tourne en boucle active : 46 ms ×1,28 à chaque passage, jusqu'à 430 ms | PSI ordinateur : tâche de 464 ms à 10,9 s attribuée à `analytics.js`. Mesure locale à 1350 px : 59 → 262 ms en 30 s, rien à 1024 px. Explique le TBT bimodal (30 / 360 / 510 ms) et l'écart Mobile/Ordinateur | Le site rame après quelques secondes sur ordinateur portable : c'est la plainte du client | Suppression. Il n'envoie rien (aucune requête, résultat rangé dans `window.__au`, lu nulle part) : aucune fonctionnalité perdue |
 
 ## 3. Résultats (après)
 
 | Indicateur | Avant | Après | Comment c'est mesuré |
 |---|---|---|---|
-| Poids total | 16,77 Mo | **0,18 Mo** (ordinateur) / 0,47 Mo (mobile) | Avant : curl sur le site déployé. Après : fichiers + gzip -9, **à confirmer dans DevTools après déploiement** |
-| Requêtes | 21 (+ favicon) | **12** (+ favicon) | idem |
+| Poids total | 17,6 Mo (DevTools) | **0,18 Mo** (ordinateur) / 0,47 Mo (mobile) | Après : fichiers + gzip -9, **à confirmer dans DevTools après déploiement** |
+| Requêtes | 23 (DevTools) | **13** (favicon compris) | idem |
 | Tâches > 50 ms (30 s, scroll, 1350 px) | 9 (de 59 à 687 ms) | **0** (max 12 ms) | Chromium local, même protocole |
 | CSS | 124 Ko en 3 fichiers + 2 CSS tierces | 6 Ko, 1 fichier | |
 | JS | 3 fichiers + 1 404 | 1 fichier en `defer` | |
