@@ -158,38 +158,90 @@
     }
   }
 
-  /* Aligne la hauteur des cartes et anime leur arrivée dans le viewport. */
-  function revealCards() {
-    var cards = document.querySelectorAll('.card');
+  var cards = [];
+  var jours = [];
+  var calendrier = null;
+  var lignesCalendrier = [];
 
+  /* Hauteur de la plus grande carte, pour garder une grille régulière.
+     Ne dépend que de la mise en page : recalculée au chargement et au
+     redimensionnement, pas à chaque cran de scroll. Toutes les lectures
+     d'abord, puis toutes les écritures : un seul calcul de mise en page. */
+  function alignCards() {
+    var tallest = 0;
     for (var i = 0; i < cards.length; i++) {
-      var rect = cards[i].getBoundingClientRect();
-
-      // Hauteur de la plus grande carte, pour garder une grille régulière.
-      var tallest = 0;
-      var all = document.querySelectorAll('.card');
-      for (var j = 0; j < all.length; j++) {
-        if (all[j].offsetHeight > tallest) {
-          tallest = all[j].offsetHeight;
-        }
+      if (cards[i].offsetHeight > tallest) {
+        tallest = cards[i].offsetHeight;
       }
-      cards[i].style.minHeight = tallest + 'px';
+    }
+    for (var j = 0; j < cards.length; j++) {
+      cards[j].style.minHeight = tallest + 'px';
+    }
+  }
 
-      if (rect.top < window.innerHeight - 40) {
-        cards[i].classList.add('visible');
-        cards[i].style.transform = 'translateY(0px)';
+  /* Les cases du calendrier sont rangées en colonnes de 7 : il n'y a que
+     7 hauteurs distinctes. On mesure leur décalage par rapport à la grille
+     une fois, plutôt que de lire la position des 371 cases à chaque scroll. */
+  function measureCalendar() {
+    lignesCalendrier = [];
+    if (!calendrier) return;
+    var haut = calendrier.getBoundingClientRect().top;
+    for (var r = 0; r < 7 && r < jours.length; r++) {
+      lignesCalendrier.push(jours[r].getBoundingClientRect().top - haut);
+    }
+  }
+
+  /* Anime l'arrivée des cartes dans le viewport et fait apparaître
+     progressivement les cases du calendrier à l'approche. */
+  function revealCards() {
+    var vh = window.innerHeight;
+
+    // Lectures groupées, sans écriture intercalée : pas de reflow forcé.
+    var tops = [];
+    for (var i = 0; i < cards.length; i++) {
+      tops.push(cards[i].getBoundingClientRect().top);
+    }
+    var hautCalendrier = calendrier ? calendrier.getBoundingClientRect().top : 0;
+
+    // Puis les écritures.
+    for (var c = 0; c < cards.length; c++) {
+      if (tops[c] < vh - 40) {
+        cards[c].classList.add('visible');
+        cards[c].style.transform = 'translateY(0px)';
       } else {
-        cards[i].style.transform = 'translateY(24px)';
+        cards[c].style.transform = 'translateY(24px)';
       }
     }
 
-    // Les cases du calendrier apparaissent progressivement à l'approche.
-    var jours = document.querySelectorAll('.cal-day');
-    for (var k = 0; k < jours.length; k++) {
-      var box = jours[k].getBoundingClientRect();
-      var d = Math.abs(box.top - window.innerHeight / 2);
-      jours[k].style.opacity = Math.max(0.15, 1 - d / window.innerHeight);
+    var n = lignesCalendrier.length;
+    if (!n) return;
+    var opacites = [];
+    for (var r = 0; r < n; r++) {
+      var d = Math.abs(hautCalendrier + lignesCalendrier[r] - vh / 2);
+      opacites.push(Math.max(0.15, 1 - d / vh));
     }
+    for (var k = 0; k < jours.length; k++) {
+      jours[k].style.opacity = opacites[k % n];
+    }
+  }
+
+  /* Scroll et resize se déclenchent bien plus souvent que l'écran ne se
+     redessine : on regroupe le travail en une passe par image. */
+  var planifie = false;
+  var relayout = false;
+  function schedule(avecMiseEnPage) {
+    if (avecMiseEnPage) relayout = true;
+    if (planifie) return;
+    planifie = true;
+    requestAnimationFrame(function () {
+      planifie = false;
+      if (relayout) {
+        relayout = false;
+        alignCards();
+        measureCalendar();
+      }
+      revealCards();
+    });
   }
 
   /* Affiche les images une fois chargées. */
@@ -209,7 +261,14 @@
     buildKeywordIndex();
     buildActivityCalendar();
     watchImages();
+
+    cards = document.querySelectorAll('.card');
+    jours = document.querySelectorAll('.cal-day');
+    calendrier = document.querySelector('#calendrier');
+    alignCards();
+    measureCalendar();
     revealCards();
+
     var champ = document.querySelector('#q');
     if (champ) champ.addEventListener('input', filterGallery);
   }
@@ -220,7 +279,7 @@
     init();
   }
 
-  window.addEventListener('scroll', revealCards);
-  window.addEventListener('resize', revealCards);
-  window.addEventListener('load', revealCards);
+  window.addEventListener('scroll', function () { schedule(false); }, { passive: true });
+  window.addEventListener('resize', function () { schedule(true); });
+  window.addEventListener('load', function () { schedule(true); });
 })();
